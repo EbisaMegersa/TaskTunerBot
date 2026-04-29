@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile containing balance and stats",
+      "type": "object",
+      "properties": {
+        "telegramId": { "type": "number" },
+        "username": { "type": "string" },
+        "adsWatched": { "type": "integer" },
+        "balance": { "type": "number" },
+        "dailyStreak": { "type": "integer" },
+        "lastDailyClaim": { "type": "string", "format": "date-time" },
+        "tasksCompleted": { "type": "array", "items": { "type": "string" } },
+        "referralsCount": { "type": "integer" },
+        "total_invites": { "type": "integer" },
+        "consumedInvites": { "type": "integer" },
+        "referralEarnings": { "type": "number" },
+        "invitedBy": { "type": "string" },
+        "has_withdrawn": { "type": "boolean" },
+        "adsSinceLastWithdrawal": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["telegramId", "username", "adsWatched", "balance", "updatedAt"]
+    },
+    "Referral": {
+      "title": "Referral Record",
+      "description": "Information about a user who was referred",
+      "type": "object",
+      "properties": {
+        "telegramId": { "type": "number" },
+        "username": { "type": "string" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["telegramId", "username", "joinedAt"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal Request",
+      "description": "A user's request to withdraw points",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "address": { "type": "string" },
+        "uid": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Success", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["amount", "method", "status", "createdAt", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Main user collection"
+    },
+    "/users/{userId}/referrals/{refId}": {
+      "schema": "Referral",
+      "description": "Tracks referrals for a specific user"
+    },
+    "/users/{userId}/withdrawals/{withdrawalId}": {
+      "schema": "Withdrawal",
+      "description": "User's withdrawal history"
+    }
+  }
+}
