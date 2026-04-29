@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #EF4444;
+  --color-secondary: #B91C1C;
+}
+
+:root {
+  color-scheme: dark;
+  --midnight: #0D0D0D;
+  --slate-gray: #A0AEC0;
+  --brand-blue: #EF4444;
+  --brand-purple: #991B1B;
+}
+
+body {
+  background-color: var(--midnight);
+  color: white;
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.gradient-card {
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-purple));
+  position: relative;
+  overflow: hidden;
+}
+
+.gradient-card::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 150px;
+  height: 150px;
+  background: white;
+  opacity: 0.1;
+  border-radius: 50%;
+}
+
+.gradient-card::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -5%;
+  width: 200px;
+  height: 200px;
+  background: white;
+  opacity: 0.05;
+  border-radius: 50%;
+}
+
+.nav-blur {
+  background: rgba(13, 18, 31, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D121F;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+}

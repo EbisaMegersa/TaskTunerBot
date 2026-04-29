@@ -1,5 +1,6 @@
 {
-  "name": "Untitled",
-  "description": "",
+  "name": "Jaallatamaa Rewards",
+  "description": "A Telegram-integrated rewards application where users earn points by watching ads and referring friends.",
+  "requestFramePermissions": [],
   "majorCapabilities": []
 }

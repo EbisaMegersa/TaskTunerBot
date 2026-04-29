@@ -21,29 +21,22 @@ service cloud.firestore {
         && (data.get('has_withdrawn', false) is bool)
         && (data.get('adsSinceLastWithdrawal', 0) is int)
         && data.updatedAt == request.time
-        && data.telegramId is int
-        // Strict key check for creation
-        && (request.method != 'create' || data.keys().size() >= 5);
+        && data.telegramId is int;
     }
 
     function isValidWithdrawal(data) {
       return data.keys().hasAll(['amount', 'method', 'status', 'createdAt', 'userId'])
         && data.amount is number && data.amount >= 30
-        && data.method is string && data.method.size() <= 100
+        && data.method is string
         && (data.status == 'Pending' || data.status == 'Success' || data.status == 'Rejected')
         && data.userId == request.auth.uid;
     }
 
     match /users/{userId} {
-      // Allow getting profile. List is enabled for inviter lookups.
-      allow get: if isOwner(userId);
-      allow list: if isSignedIn() && (resource.data.telegramId == request.auth.uid || resource.data.telegramId is int);
+      allow get: if isSignedIn(); 
+      allow list: if isSignedIn();
       
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
-        && (incoming().invitedBy == null || (
-             // Atomicity: If invited, the inviter's referral record must be created in the same batch
-             existsAfter(/databases/$(database)/documents/users/$(incoming().invitedBy)/referrals/$(userId))
-           ));
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       
       allow update: if (isOwner(userId) && isValidId(userId) && isValidUser(incoming()))
         || (
@@ -57,17 +50,14 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'referralsCount', 'total_invites', 'referralEarnings', 'updatedAt'])
         )
         || (
-          // Action: Self-Update (Tasks/Ads/Check-in/Withdrawal deduction)
+          // Action: Status Flip / Invite Consumption / Ad Reset
           isOwner(userId)
           && incoming().diff(existing()).affectedKeys().hasAny(['consumedInvites', 'updatedAt', 'has_withdrawn', 'adsSinceLastWithdrawal', 'balance', 'dailyStreak', 'lastDailyClaim', 'tasksCompleted', 'adsWatched'])
-          // Terminal status lock: If user has withdrawn, they can't reset balance to 0 without logic
-          && (existing().get('balance', 0) >= 0)
         );
 
       match /referrals/{refId} {
         allow read: if isOwner(userId);
-        // Allow creation if the referral record is part of a join batch
-        allow create: if isSignedIn() && isValidId(refId); 
+        allow create: if isSignedIn() && isValidId(refId);
       }
 
       match /withdrawals/{withdrawalId} {
