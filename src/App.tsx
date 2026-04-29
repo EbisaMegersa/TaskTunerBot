@@ -150,7 +150,7 @@ export default function App() {
           
           if (!userDoc.exists()) {
             // New User Implementation
-            const newProfile: UserProfile = {
+            const newProfile: any = {
               telegramId: id,
               username: username,
               adsWatched: 0,
@@ -165,8 +165,11 @@ export default function App() {
               has_withdrawn: false,
               adsSinceLastWithdrawal: 0,
               updatedAt: serverTimestamp(),
-              invitedBy: startParam || undefined
             };
+            
+            if (startParam) {
+              newProfile.invitedBy = startParam;
+            }
             
             await setDoc(userRef, newProfile);
 
