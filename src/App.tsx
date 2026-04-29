@@ -7,6 +7,7 @@ import {
 import { 
   doc, 
   getDoc, 
+  getDocs,
   setDoc, 
   updateDoc, 
   onSnapshot, 
@@ -205,31 +206,39 @@ export default function App() {
             await setDoc(userRef, newProfile);
 
             // Handle Referral Logic if invitedBy exists
-            if (startParam && startParam !== fbUser.uid) {
-              const referrerRef = doc(db, 'users', startParam);
+            if (startParam) {
               try {
-                // Verify referrer exists before rewarding
-                const referrerDoc = await getDoc(referrerRef);
-                if (referrerDoc.exists()) {
-                  await updateDoc(referrerRef, {
-                    balance: increment(0.35),
-                    referralsCount: increment(1),
-                    total_invites: increment(1),
-                    referralEarnings: increment(0.35),
-                    updatedAt: serverTimestamp()
-                  });
-                  
-                  // Add to referrals subcollection
-                  await addDoc(collection(referrerRef, 'referrals'), {
-                    telegramId: id,
-                    username: username,
-                    joinedAt: serverTimestamp()
-                  });
-                } else {
-                  console.warn("Referrer document not found for ID:", startParam);
+                const inviterTelegramId = parseInt(startParam);
+                if (!isNaN(inviterTelegramId) && inviterTelegramId !== id) {
+                  // Find inviter by telegramId
+                  const q = query(collection(db, 'users'), where('telegramId', '==', inviterTelegramId));
+                  const inviterSnap = await getDocs(q);
+
+                  if (!inviterSnap.empty) {
+                    const inviterDoc = inviterSnap.docs[0];
+                    const inviterRef = doc(db, 'users', inviterDoc.id);
+                    
+                    await updateDoc(inviterRef, {
+                      balance: increment(0.35),
+                      referralsCount: increment(1),
+                      total_invites: increment(1),
+                      referralEarnings: increment(0.35),
+                      updatedAt: serverTimestamp()
+                    });
+                    
+                    // Add to referrals subcollection
+                    await addDoc(collection(inviterRef, 'referrals'), {
+                      telegramId: id,
+                      username: username,
+                      joinedAt: serverTimestamp()
+                    });
+                    console.log("Tasktuner: Successfully rewarded inviter:", inviterTelegramId);
+                  } else {
+                    console.warn("Tasktuner: Inviter Telegram ID not found in database:", inviterTelegramId);
+                  }
                 }
               } catch (e) {
-                console.error("Referral processing failed", e);
+                console.error("Tasktuner: Referral processing failed", e);
               }
             }
           }
@@ -588,16 +597,16 @@ export default function App() {
                 
                 <div className="flex gap-2">
                    <div className="flex-1 bg-white/5 p-4 rounded-xl border border-white/10 text-sm font-mono truncate">
-                    {user?.uid ? `t.me/Tasktuner_bot?startapp=${user.uid}` : 'Generating link...'}
+                    {profile?.telegramId ? `t.me/Tasktuner_bot?startapp=${profile.telegramId}` : 'Generating link...'}
                    </div>
                    <button 
                     onClick={() => {
-                      if (user?.uid) {
-                        navigator.clipboard.writeText(`https://t.me/Tasktuner_bot?startapp=${user.uid}`);
+                      if (profile?.telegramId) {
+                        navigator.clipboard.writeText(`https://t.me/Tasktuner_bot?startapp=${profile.telegramId}`);
                         alert("Link copied!");
                       }
                     }}
-                    disabled={!user?.uid}
+                    disabled={!profile?.telegramId}
                     className="bg-primary text-white p-4 rounded-xl font-bold disabled:opacity-50"
                    >
                      Copy
