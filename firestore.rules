@@ -42,10 +42,10 @@ service cloud.firestore {
         || (
           // Action: Referral Reward ($0.35)
           isSignedIn() && !isOwner(userId)
-          && (incoming().balance == existing().balance + 0.35 || incoming().balance == existing().balance + 0.3500000000000001) // Handle float precision
+          && (incoming().balance > existing().balance + 0.34 && incoming().balance < existing().balance + 0.36)
           && (incoming().referralsCount == (existing().get('referralsCount', 0) + 1))
           && (incoming().total_invites == (existing().get('total_invites', 0) + 1))
-          && (incoming().referralEarnings == (existing().get('referralEarnings', 0.0) + 0.35))
+          && (incoming().referralEarnings > (existing().get('referralEarnings', 0.0) + 0.34) && incoming().referralEarnings < (existing().get('referralEarnings', 0.0) + 0.36))
           && incoming().updatedAt == request.time
           && incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'referralsCount', 'total_invites', 'referralEarnings', 'updatedAt'])
         )

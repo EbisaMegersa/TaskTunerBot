@@ -108,9 +108,26 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 const getTelegramData = () => {
   // @ts-ignore
   const tg = window.Telegram?.WebApp;
+  
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+  
+  // Extract from initDataUnsafe if available
+  let startParam = tg?.initDataUnsafe?.start_param;
+  
+  // Fallback to URL parameters (tgWebAppStartParam or startapp or start)
+  if (!startParam) {
+    const urlParams = new URLSearchParams(window.location.search);
+    startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('startapp') || urlParams.get('start');
+  }
+
+  if (startParam) {
+    console.log("Tasktuner: Detected startParam:", startParam);
+  }
+
   if (tg?.initDataUnsafe?.user) {
-    // Priority: start_param (used by startapp=USER_ID or start=USER_ID)
-    const startParam = tg.initDataUnsafe.start_param;
     return {
       username: tg.initDataUnsafe.user.username || tg.initDataUnsafe.user.first_name,
       id: tg.initDataUnsafe.user.id,
@@ -120,7 +137,7 @@ const getTelegramData = () => {
   return {
     username: 'DemoUser_' + Math.floor(Math.random() * 1000),
     id: 12345678,
-    startParam: new URLSearchParams(window.location.search).get('start') || undefined
+    startParam: startParam || undefined
   };
 };
 
@@ -191,22 +208,28 @@ export default function App() {
             if (startParam && startParam !== fbUser.uid) {
               const referrerRef = doc(db, 'users', startParam);
               try {
-                await updateDoc(referrerRef, {
-                  balance: increment(0.35),
-                  referralsCount: increment(1),
-                  total_invites: increment(1),
-                  referralEarnings: increment(0.35),
-                  updatedAt: serverTimestamp()
-                });
-                
-                // Add to referrals subcollection
-                await addDoc(collection(referrerRef, 'referrals'), {
-                  telegramId: id,
-                  username: username,
-                  joinedAt: serverTimestamp()
-                });
+                // Verify referrer exists before rewarding
+                const referrerDoc = await getDoc(referrerRef);
+                if (referrerDoc.exists()) {
+                  await updateDoc(referrerRef, {
+                    balance: increment(0.35),
+                    referralsCount: increment(1),
+                    total_invites: increment(1),
+                    referralEarnings: increment(0.35),
+                    updatedAt: serverTimestamp()
+                  });
+                  
+                  // Add to referrals subcollection
+                  await addDoc(collection(referrerRef, 'referrals'), {
+                    telegramId: id,
+                    username: username,
+                    joinedAt: serverTimestamp()
+                  });
+                } else {
+                  console.warn("Referrer document not found for ID:", startParam);
+                }
               } catch (e) {
-                console.error("Referral update failed", e);
+                console.error("Referral processing failed", e);
               }
             }
           }
@@ -565,14 +588,17 @@ export default function App() {
                 
                 <div className="flex gap-2">
                    <div className="flex-1 bg-white/5 p-4 rounded-xl border border-white/10 text-sm font-mono truncate">
-                    t.me/Tasktuner_bot?startapp={user?.uid}
+                    {user?.uid ? `t.me/Tasktuner_bot?startapp=${user.uid}` : 'Generating link...'}
                    </div>
                    <button 
                     onClick={() => {
-                      navigator.clipboard.writeText(`https://t.me/Tasktuner_bot?startapp=${user?.uid}`);
-                      alert("Link copied!");
+                      if (user?.uid) {
+                        navigator.clipboard.writeText(`https://t.me/Tasktuner_bot?startapp=${user.uid}`);
+                        alert("Link copied!");
+                      }
                     }}
-                    className="bg-primary text-white p-4 rounded-xl font-bold"
+                    disabled={!user?.uid}
+                    className="bg-primary text-white p-4 rounded-xl font-bold disabled:opacity-50"
                    >
                      Copy
                    </button>
