@@ -23,11 +23,14 @@ testConnection();
 // Note: In a real app, you'd verify the Telegram initData on the server
 export const authStatus = { restricted: false };
 
-signInAnonymously(auth).catch((error) => {
+signInAnonymously(auth).then(() => {
+  console.log("Firebase Anonymous Auth successful.");
+}).catch((error) => {
   if (error.code === 'auth/admin-restricted-operation') {
     authStatus.restricted = true;
     console.error("Firebase Anonymous Auth is NOT enabled in your console. Please go to your Firebase Project -> Authentication -> Sign-in method and enable 'Anonymous'.");
   } else {
     console.error("Error signing in anonymously:", error.code, error.message);
+    // Potentially critical error, but we'll let App.tsx handle the timeout if needed
   }
 });
