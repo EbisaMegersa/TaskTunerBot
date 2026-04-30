@@ -4,9 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jaallatamaa Rewards</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       (function() {
-        var highVersion = '10.0';
+        // Global error tracking for remote debugging
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+          console.error('GLOBAL_ERROR:', msg, lineNo);
+          if (window.document.body) {
+            var errDiv = document.getElementById('debug-error');
+            if (!errDiv) {
+              errDiv = document.createElement('div');
+              errDiv.id = 'debug-error';
+              errDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:red;color:white;z-index:9999;font-size:10px;padding:5px;word-break:break-all;';
+              document.body.appendChild(errDiv);
+            }
+            errDiv.innerText = 'System Error: ' + msg + ' (Line ' + lineNo + ')';
+          }
+          return false;
+        };
+
+        var highVersion = '7.10';
         var mockStorage = {
           setItem: function(k, v, cb) { if(cb) cb(null, true); return this; },
           getItem: function(k, cb) { if(cb) cb(null, null); return this; },
@@ -60,41 +77,53 @@
 
         function applyPatch() {
           if (!window.Telegram) window.Telegram = {};
-          if (!window.Telegram.WebApp) window.Telegram.WebApp = {};
+          if (!window.Telegram.WebApp) window.Telegram.WebApp = {
+            ready: function() {},
+            expand: function() {},
+            close: function() {},
+            showAlert: mockShowAlert,
+            showConfirm: mockShowConfirm,
+            showPopup: mockShowPopup,
+            HapticFeedback: mockHaptic,
+            CloudStorage: mockStorage,
+            version: highVersion,
+            isVersionAtLeast: function() { return true; },
+            initData: "",
+            initDataUnsafe: {}
+          };
           
           var wa = window.Telegram.WebApp;
           try {
-            // Only define if version is lower or missing to avoid unnecessary overhead
+            // Force values if they are missing or too old
             if (!wa.version || parseFloat(wa.version) < 6.9) {
-              Object.defineProperty(wa, 'version', { value: highVersion, writable: false, configurable: true });
-              Object.defineProperty(wa, 'isVersionAtLeast', { value: function() { return true; }, writable: false, configurable: true });
-              if (!wa.CloudStorage) {
-                Object.defineProperty(wa, 'CloudStorage', { value: mockStorage, writable: false, configurable: true });
+              try {
+                Object.defineProperty(wa, 'version', { value: highVersion, writable: true, configurable: true });
+                Object.defineProperty(wa, 'isVersionAtLeast', { value: function() { return true; }, writable: true, configurable: true });
+              } catch(e) {
+                wa.version = highVersion;
               }
-              if (!wa.showPopup) {
-                Object.defineProperty(wa, 'showPopup', { value: mockShowPopup, writable: false, configurable: true });
-              }
-              if (!wa.showAlert) {
-                Object.defineProperty(wa, 'showAlert', { value: mockShowAlert, writable: false, configurable: true });
-              }
-              if (!wa.showConfirm) {
-                Object.defineProperty(wa, 'showConfirm', { value: mockShowConfirm, writable: false, configurable: true });
-              }
-              if (!wa.HapticFeedback) {
-                Object.defineProperty(wa, 'HapticFeedback', { value: mockHaptic, writable: false, configurable: true });
-              }
-              if (wa.initDataUnsafe) wa.initDataUnsafe.version = highVersion;
             }
-          } catch(e) {}
+            
+            if (!wa.CloudStorage) wa.CloudStorage = mockStorage;
+            if (!wa.showPopup) wa.showPopup = mockShowPopup;
+            if (!wa.showAlert) wa.showAlert = mockShowAlert;
+            if (!wa.showConfirm) wa.showConfirm = mockShowConfirm;
+            if (!wa.HapticFeedback) wa.HapticFeedback = mockHaptic;
+            
+            if (wa.initDataUnsafe) {
+               if (!wa.initDataUnsafe.version) wa.initDataUnsafe.version = highVersion;
+            }
+          } catch(e) {
+            console.error('Patch application error:', e);
+          }
         }
 
         applyPatch();
-        // Constant enforcement for the first 10 seconds
-        var patchTimer = setInterval(applyPatch, 100);
-        setTimeout(function() { clearInterval(patchTimer); }, 10000);
+        // Constant enforcement for the first 5 seconds to catch delayed SDK load
+        var patchTimer = setInterval(applyPatch, 500);
+        setTimeout(function() { clearInterval(patchTimer); }, 5000);
       })();
     </script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src='https://libtl.com/sdk.js' data-zone='10937696' data-sdk='show_10937696'></script>
   </head>
   <body>
