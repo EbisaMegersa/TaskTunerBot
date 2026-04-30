@@ -17,6 +17,8 @@
         "consumedInvites": { "type": "integer" },
         "referralEarnings": { "type": "number" },
         "invitedBy": { "type": "string" },
+        "has_withdrawn": { "type": "boolean" },
+        "adsSinceLastWithdrawal": { "type": "integer" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["telegramId", "username", "adsWatched", "balance", "updatedAt"]

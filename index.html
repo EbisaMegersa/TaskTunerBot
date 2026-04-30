@@ -6,6 +6,7 @@
     <title>Jaallatamaa Rewards</title>
     <script>
       (function() {
+        var highVersion = '10.0';
         var mockStorage = {
           setItem: function(k, v, cb) { if(cb) cb(null, true); return this; },
           getItem: function(k, cb) { if(cb) cb(null, null); return this; },
@@ -15,81 +16,82 @@
           getKeys: function(cb) { if(cb) cb(null, []); return this; }
         };
 
-        function patch(wa) {
+        var mockShowPopup = function(params, callback) {
+          console.log('Mocked showPopup called');
+          if (callback) callback();
+        };
+
+        var mockShowAlert = function(message, callback) {
+          console.log('Mocked showAlert called');
+          alert(message);
+          if (callback) callback();
+        };
+
+        var mockShowConfirm = function(message, callback) {
+          console.log('Mocked showConfirm called');
+          var result = confirm(message);
+          if (callback) callback(result);
+        };
+
+        var mockHaptic = {
+          impactOccurred: function() { return this; },
+          notificationOccurred: function() { return this; },
+          selectionChanged: function() { return this; }
+        };
+
+        // Silence the specific warnings/errors from the SDK
+        var _log = console.log;
+        var _warn = console.warn;
+        var _error = console.error;
+        var filter = function(args, original) {
+          if (args[0] && typeof args[0] === 'string') {
+            if (args[0].includes('CloudStorage is not supported') || 
+                args[0].includes('Method showPopup is not supported') ||
+                args[0].includes('Method showAlert is not supported') ||
+                args[0].includes('Method showConfirm is not supported')) {
+              return;
+            }
+          }
+          original.apply(console, args);
+        };
+        console.log = function() { filter(arguments, _log); };
+        console.warn = function() { filter(arguments, _warn); };
+        console.error = function() { filter(arguments, _error); };
+
+        function applyPatch() {
+          if (!window.Telegram) window.Telegram = {};
+          if (!window.Telegram.WebApp) window.Telegram.WebApp = {};
+          
+          var wa = window.Telegram.WebApp;
           try {
-            if (!wa) return;
-            // Force version to a high value
-            const highVersion = '10.0';
-            
-            // Redefine properties even if they are already set
-            Object.defineProperty(wa, 'version', {
-              get: function() { return highVersion; },
-              set: function() {},
-              configurable: true,
-              enumerable: true
-            });
-
-            wa.isVersionAtLeast = function() { return true; };
-            wa._isVersionAtLeast = function() { return true; };
-            
-            Object.defineProperty(wa, 'CloudStorage', {
-              get: function() { return mockStorage; },
-              set: function() {},
-              configurable: true,
-              enumerable: true
-            });
-
-            if (wa.initDataUnsafe) {
-              wa.initDataUnsafe.version = highVersion;
+            // Only define if version is lower or missing to avoid unnecessary overhead
+            if (!wa.version || parseFloat(wa.version) < 6.9) {
+              Object.defineProperty(wa, 'version', { value: highVersion, writable: false, configurable: true });
+              Object.defineProperty(wa, 'isVersionAtLeast', { value: function() { return true; }, writable: false, configurable: true });
+              if (!wa.CloudStorage) {
+                Object.defineProperty(wa, 'CloudStorage', { value: mockStorage, writable: false, configurable: true });
+              }
+              if (!wa.showPopup) {
+                Object.defineProperty(wa, 'showPopup', { value: mockShowPopup, writable: false, configurable: true });
+              }
+              if (!wa.showAlert) {
+                Object.defineProperty(wa, 'showAlert', { value: mockShowAlert, writable: false, configurable: true });
+              }
+              if (!wa.showConfirm) {
+                Object.defineProperty(wa, 'showConfirm', { value: mockShowConfirm, writable: false, configurable: true });
+              }
+              if (!wa.HapticFeedback) {
+                Object.defineProperty(wa, 'HapticFeedback', { value: mockHaptic, writable: false, configurable: true });
+              }
+              if (wa.initDataUnsafe) wa.initDataUnsafe.version = highVersion;
             }
           } catch(e) {}
         }
 
-        // Silence the specific error message if it's still being logged
-        var _warn = console.warn;
-        console.warn = function() {
-          if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].includes('CloudStorage is not supported')) {
-            return;
-          }
-          _warn.apply(console, arguments);
-        };
-
-        // Intercept Telegram object creation and properties
-        var _tg = window.Telegram;
-        function setupTG(v) {
-          if (!v) return;
-          _tg = v;
-          if (_tg.WebApp) patch(_tg.WebApp);
-          else {
-            var _wa;
-            Object.defineProperty(_tg, 'WebApp', {
-              get: function() { return _wa; },
-              set: function(w) {
-                _wa = w;
-                if (w) patch(w);
-              },
-              configurable: true,
-              enumerable: true
-            });
-          }
-        }
-
-        Object.defineProperty(window, 'Telegram', {
-          get: function() { return _tg; },
-          set: function(v) { setupTG(v); },
-          configurable: true,
-          enumerable: true
-        });
-
-        if (window.Telegram) setupTG(window.Telegram);
-
-        // Polling as ultimate safety
-        var interval = setInterval(function() {
-          if (window.Telegram && window.Telegram.WebApp) {
-            patch(window.Telegram.WebApp);
-          }
-        }, 5);
-        setTimeout(function() { clearInterval(interval); }, 15000);
+        applyPatch();
+        // Constant enforcement for the first 10 seconds
+        var patchTimer = setInterval(applyPatch, 100);
+        setTimeout(function() { clearInterval(patchTimer); }, 10000);
       })();
     </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>

@@ -18,6 +18,8 @@ service cloud.firestore {
         && data.adsWatched is int && data.adsWatched >= 0
         && data.balance is number && data.balance >= 0
         && (data.get('consumedInvites', 0) is int)
+        && (data.get('has_withdrawn', false) is bool)
+        && (data.get('adsSinceLastWithdrawal', 0) is int)
         && data.updatedAt == request.time
         && data.telegramId is int;
     }
@@ -48,9 +50,9 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'referralsCount', 'total_invites', 'referralEarnings', 'updatedAt'])
         )
         || (
-          // Action: Status Flip / Invite Consumption
+          // Action: Status Flip / Invite Consumption / Ad Reset
           isOwner(userId)
-          && incoming().diff(existing()).affectedKeys().hasAny(['consumedInvites', 'updatedAt'])
+          && incoming().diff(existing()).affectedKeys().hasAny(['consumedInvites', 'updatedAt', 'has_withdrawn', 'adsSinceLastWithdrawal', 'balance', 'dailyStreak', 'lastDailyClaim', 'tasksCompleted', 'adsWatched'])
         );
 
       match /referrals/{refId} {
