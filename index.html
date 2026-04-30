@@ -1,134 +1,45 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jaallatamaa Rewards</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETB TAP</title>
+    <link rel="stylesheet" href="styles.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-      (function() {
-        // Global error tracking for remote debugging
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-          console.error('GLOBAL_ERROR:', msg, lineNo);
-          if (window.document.body) {
-            var errDiv = document.getElementById('debug-error');
-            if (!errDiv) {
-              errDiv = document.createElement('div');
-              errDiv.id = 'debug-error';
-              errDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:red;color:white;z-index:9999;font-size:10px;padding:5px;word-break:break-all;';
-              document.body.appendChild(errDiv);
-            }
-            errDiv.innerText = 'System Error: ' + msg + ' (Line ' + lineNo + ')';
-          }
-          return false;
-        };
+</head>
+<body>
+<div class="backg">
+    <div class="profile">
+        <img src="avatar.png" alt="Profile Picture" id="profile-picture">
+        <div id="username-value">Unknown</div>
+    </div>
+    <div class="profile_balance">
+        <div id="balance">Balance: <span id="balance-value">0.0000</span> ETB</div>
+        <img src="balance.png" alt="Profile balance" id="profile-balance">
+    </div>
+</div>
+  
+    <img id="main-img" src="tap-img.jpg" alt="ETB TAP">
+    <div class="join-com">
+        <h1><a href="https://t.me/etb_tap_community" target="_blank">Join our community</a></h1>
+    </div>
+    <div class="nav-bar">
+        <div class="nav-item">
+            <div class="nav-emoji">▶️</div>
+            <button id="tap">ᴛᴀᴩ</button>
+        </div>
+        <div class="nav-item">
+            <div class="nav-emoji">📤</div>
+            <button id="withdraw">ᴡɪᴛʜᴅʀᴀᴡ</button>
+        </div>
+    </div>
+    <div id="popup" class="hidden"></div>
 
-        var highVersion = '7.10';
-        var mockStorage = {
-          setItem: function(k, v, cb) { if(cb) cb(null, true); return this; },
-          getItem: function(k, cb) { if(cb) cb(null, null); return this; },
-          getItems: function(ks, cb) { if(cb) cb(null, {}); return this; },
-          removeItem: function(k, cb) { if(cb) cb(null, true); return this; },
-          removeItems: function(ks, cb) { if(cb) cb(null, true); return this; },
-          getKeys: function(cb) { if(cb) cb(null, []); return this; }
-        };
+    <!-- Progress Bar Container -->
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
 
-        var mockShowPopup = function(params, callback) {
-          console.log('Mocked showPopup called');
-          if (callback) callback();
-        };
-
-        var mockShowAlert = function(message, callback) {
-          console.log('Mocked showAlert called');
-          alert(message);
-          if (callback) callback();
-        };
-
-        var mockShowConfirm = function(message, callback) {
-          console.log('Mocked showConfirm called');
-          var result = confirm(message);
-          if (callback) callback(result);
-        };
-
-        var mockHaptic = {
-          impactOccurred: function() { return this; },
-          notificationOccurred: function() { return this; },
-          selectionChanged: function() { return this; }
-        };
-
-        // Silence the specific warnings/errors from the SDK
-        var _log = console.log;
-        var _warn = console.warn;
-        var _error = console.error;
-        var filter = function(args, original) {
-          if (args[0] && typeof args[0] === 'string') {
-            if (args[0].includes('CloudStorage is not supported') || 
-                args[0].includes('Method showPopup is not supported') ||
-                args[0].includes('Method showAlert is not supported') ||
-                args[0].includes('Method showConfirm is not supported')) {
-              return;
-            }
-          }
-          original.apply(console, args);
-        };
-        console.log = function() { filter(arguments, _log); };
-        console.warn = function() { filter(arguments, _warn); };
-        console.error = function() { filter(arguments, _error); };
-
-        function applyPatch() {
-          if (!window.Telegram) window.Telegram = {};
-          if (!window.Telegram.WebApp) window.Telegram.WebApp = {
-            ready: function() {},
-            expand: function() {},
-            close: function() {},
-            showAlert: mockShowAlert,
-            showConfirm: mockShowConfirm,
-            showPopup: mockShowPopup,
-            HapticFeedback: mockHaptic,
-            CloudStorage: mockStorage,
-            version: highVersion,
-            isVersionAtLeast: function() { return true; },
-            initData: "",
-            initDataUnsafe: {}
-          };
-          
-          var wa = window.Telegram.WebApp;
-          try {
-            // Force values if they are missing or too old
-            if (!wa.version || parseFloat(wa.version) < 6.9) {
-              try {
-                Object.defineProperty(wa, 'version', { value: highVersion, writable: true, configurable: true });
-                Object.defineProperty(wa, 'isVersionAtLeast', { value: function() { return true; }, writable: true, configurable: true });
-              } catch(e) {
-                wa.version = highVersion;
-              }
-            }
-            
-            if (!wa.CloudStorage) wa.CloudStorage = mockStorage;
-            if (!wa.showPopup) wa.showPopup = mockShowPopup;
-            if (!wa.showAlert) wa.showAlert = mockShowAlert;
-            if (!wa.showConfirm) wa.showConfirm = mockShowConfirm;
-            if (!wa.HapticFeedback) wa.HapticFeedback = mockHaptic;
-            
-            if (wa.initDataUnsafe) {
-               if (!wa.initDataUnsafe.version) wa.initDataUnsafe.version = highVersion;
-            }
-          } catch(e) {
-            console.error('Patch application error:', e);
-          }
-        }
-
-        applyPatch();
-        // Constant enforcement for the first 5 seconds to catch delayed SDK load
-        var patchTimer = setInterval(applyPatch, 500);
-        setTimeout(function() { clearInterval(patchTimer); }, 5000);
-      })();
-    </script>
-    <script src='https://libtl.com/sdk.js' data-zone='10937696' data-sdk='show_10937696'></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    <script src="main.js"></script>
+</body>
 </html>
-
