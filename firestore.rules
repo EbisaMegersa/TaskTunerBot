@@ -26,7 +26,7 @@ service cloud.firestore {
 
     function isValidWithdrawal(data) {
       return data.keys().hasAll(['amount', 'method', 'status', 'createdAt', 'userId'])
-        && data.amount is number && data.amount >= 5
+        && data.amount is number && data.amount >= 30
         && data.method is string
         && (data.status == 'Pending' || data.status == 'Success' || data.status == 'Rejected')
         && data.userId == request.auth.uid;
@@ -40,12 +40,12 @@ service cloud.firestore {
       
       allow update: if (isOwner(userId) && isValidId(userId) && isValidUser(incoming()))
         || (
-          // Action: Referral Reward ($0.35)
+          // Action: Referral Reward (50 points)
           isSignedIn() && !isOwner(userId)
-          && (incoming().balance > existing().balance + 0.34 && incoming().balance < existing().balance + 0.36)
+          && incoming().balance == existing().balance + 50
           && (incoming().referralsCount == (existing().get('referralsCount', 0) + 1))
           && (incoming().total_invites == (existing().get('total_invites', 0) + 1))
-          && (incoming().referralEarnings > (existing().get('referralEarnings', 0.0) + 0.34) && incoming().referralEarnings < (existing().get('referralEarnings', 0.0) + 0.36))
+          && (incoming().referralEarnings == (existing().get('referralEarnings', 0.0) + 50))
           && incoming().updatedAt == request.time
           && incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'referralsCount', 'total_invites', 'referralEarnings', 'updatedAt'])
         )

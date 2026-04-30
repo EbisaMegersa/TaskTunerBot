@@ -2,20 +2,20 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "User profile containing balance (in USD) and stats",
+      "description": "User profile containing balance and stats",
       "type": "object",
       "properties": {
         "telegramId": { "type": "number" },
         "username": { "type": "string" },
         "adsWatched": { "type": "integer" },
-        "balance": { "type": "number", "description": "Current balance in USD" },
+        "balance": { "type": "number" },
         "dailyStreak": { "type": "integer" },
         "lastDailyClaim": { "type": "string", "format": "date-time" },
         "tasksCompleted": { "type": "array", "items": { "type": "string" } },
         "referralsCount": { "type": "integer" },
         "total_invites": { "type": "integer" },
         "consumedInvites": { "type": "integer" },
-        "referralEarnings": { "type": "number", "description": "Total earned from referrals in USD" },
+        "referralEarnings": { "type": "number" },
         "invitedBy": { "type": "string" },
         "has_withdrawn": { "type": "boolean" },
         "adsSinceLastWithdrawal": { "type": "integer" },
