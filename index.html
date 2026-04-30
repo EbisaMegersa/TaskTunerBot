@@ -6,8 +6,6 @@
     <title>Jaallatamaa Rewards</title>
     <script>
       (function() {
-        // High version to enable all features
-        var highVersion = '10.0';
         var mockStorage = {
           setItem: function(k, v, cb) { if(cb) cb(null, true); return this; },
           getItem: function(k, cb) { if(cb) cb(null, null); return this; },
@@ -17,50 +15,81 @@
           getKeys: function(cb) { if(cb) cb(null, []); return this; }
         };
 
-        function applyPatch() {
+        function patch(wa) {
           try {
-            window.Telegram = window.Telegram || {};
-            window.Telegram.WebApp = window.Telegram.WebApp || {};
-            var wa = window.Telegram.WebApp;
+            if (!wa) return;
+            // Force version to a high value
+            const highVersion = '10.0';
             
-            // Mock version and methods if they are missing or low
-            if (!wa.version || parseFloat(wa.version) < 6.1) {
-              try {
-                Object.defineProperty(wa, 'version', { 
-                  get: function() { return highVersion; },
-                  set: function() {},
-                  configurable: true 
-                });
-              } catch(e) { wa.version = highVersion; }
-            }
+            // Redefine properties even if they are already set
+            Object.defineProperty(wa, 'version', {
+              get: function() { return highVersion; },
+              set: function() {},
+              configurable: true,
+              enumerable: true
+            });
 
-            if (!wa.isVersionAtLeast) {
-              wa.isVersionAtLeast = function() { return true; };
-            }
+            wa.isVersionAtLeast = function() { return true; };
+            wa._isVersionAtLeast = function() { return true; };
+            
+            Object.defineProperty(wa, 'CloudStorage', {
+              get: function() { return mockStorage; },
+              set: function() {},
+              configurable: true,
+              enumerable: true
+            });
 
-            if (!wa.CloudStorage) {
-              wa.CloudStorage = mockStorage;
+            if (wa.initDataUnsafe) {
+              wa.initDataUnsafe.version = highVersion;
             }
+          } catch(e) {}
+        }
 
-            if (wa.initDataUnsafe && !wa.initDataUnsafe.user) {
-               // Optional: Mock user for testing if needed
-            }
-          } catch(e) {
-            console.error("Patch error:", e);
+        // Silence the specific error message if it's still being logged
+        var _warn = console.warn;
+        console.warn = function() {
+          if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].includes('CloudStorage is not supported')) {
+            return;
+          }
+          _warn.apply(console, arguments);
+        };
+
+        // Intercept Telegram object creation and properties
+        var _tg = window.Telegram;
+        function setupTG(v) {
+          if (!v) return;
+          _tg = v;
+          if (_tg.WebApp) patch(_tg.WebApp);
+          else {
+            var _wa;
+            Object.defineProperty(_tg, 'WebApp', {
+              get: function() { return _wa; },
+              set: function(w) {
+                _wa = w;
+                if (w) patch(w);
+              },
+              configurable: true,
+              enumerable: true
+            });
           }
         }
 
-        applyPatch();
-        // Periodically re-apply in case SDK re-initializes
-        var patchTimer = setInterval(applyPatch, 1000);
-        setTimeout(function() { clearInterval(patchTimer); }, 10000);
+        Object.defineProperty(window, 'Telegram', {
+          get: function() { return _tg; },
+          set: function(v) { setupTG(v); },
+          configurable: true,
+          enumerable: true
+        });
 
-        // Simple console filter for specific Telegram warnings
-        var _warn = console.warn;
-        console.warn = function() {
-          if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('CloudStorage') !== -1) return;
-          _warn.apply(console, arguments);
-        };
+        if (window.Telegram) setupTG(window.Telegram);
+
+        // Polling as ultimate safety
+        var interval = setInterval(function() {
+          if (window.Telegram && window.Telegram.WebApp) {
+            patch(window.Telegram.WebApp);
+          }
+        }, 5);
+        setTimeout(function() { clearInterval(interval); }, 15000);
       })();
     </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>

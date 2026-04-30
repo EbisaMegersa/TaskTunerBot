@@ -25,7 +25,7 @@ import {
   Copy,
   Clock
 } from 'lucide-react';
-import { db, auth, authStatus } from './lib/firebase';
+import { db, auth } from './lib/firebase';
 import { doc, setDoc, updateDoc, serverTimestamp, onSnapshot, increment, query, collection, where, getDocs, limit, orderBy, addDoc, writeBatch } from 'firebase/firestore';
 
 // --- Types ---
@@ -42,8 +42,6 @@ interface UserProfile {
   consumedInvites: number;
   referralEarnings: number;
   invitedBy: string | null;
-  has_withdrawn: boolean;
-  adsSinceLastWithdrawal: number;
 }
 
 interface WithdrawalHistory {
@@ -121,18 +119,6 @@ export default function App() {
     let unsubscribeAuth: (() => void) | undefined;
     let unsubscribeProfile: (() => void) | undefined;
     let unsubscribeHistory: (() => void) | undefined;
-    let isMounted = true;
-
-    // Safety timeout: if we are still loading after 15 seconds, something is wrong
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn("Initialization timed out. Forcing stop loading.");
-        setLoading(false);
-        if (!userData && !profile) {
-          setError("Connection is taking longer than expected. Please check your internet or Firebase console.");
-        }
-      }
-    }, 15000);
 
     const extractStartParam = (tg: any) => {
       if (tg.initDataUnsafe?.start_param) return tg.initDataUnsafe.start_param;
@@ -162,13 +148,7 @@ export default function App() {
       const user = tg.initDataUnsafe.user;
       
       unsubscribeAuth = auth.onAuthStateChanged(async (firebaseUser) => {
-        if (!firebaseUser) {
-          if (authStatus.restricted) {
-            setError("AUTH_RESTRICTED");
-            setLoading(false);
-          }
-          return;
-        }
+        if (!firebaseUser) return;
 
         // Cleanup existing listeners if any
         unsubscribeProfile?.();
@@ -199,9 +179,7 @@ export default function App() {
                 total_invites: data.total_invites || 0,
                 consumedInvites: data.consumedInvites || 0,
                 referralEarnings: data.referralEarnings || 0,
-                invitedBy: data.invitedBy || null,
-                has_withdrawn: data.has_withdrawn || false,
-                adsSinceLastWithdrawal: data.adsSinceLastWithdrawal || 0
+                invitedBy: data.invitedBy || null
               });
             setLoading(false);
           } else {
@@ -255,8 +233,6 @@ export default function App() {
                 consumedInvites: 0,
                 referralEarnings: 0,
                 invitedBy: inviterIdStr,
-                has_withdrawn: false,
-                adsSinceLastWithdrawal: 0,
                 updatedAt: serverTimestamp()
               };
               await setDoc(doc(db, userDocPath), initialProfile);
@@ -297,8 +273,6 @@ export default function App() {
 
     init();
     return () => {
-      isMounted = false;
-      clearTimeout(safetyTimeout);
       unsubscribeAuth?.();
       unsubscribeProfile?.();
       unsubscribeHistory?.();
@@ -316,7 +290,6 @@ export default function App() {
       try {
         await updateDoc(doc(db, userDocPath), {
           adsWatched: increment(1),
-          adsSinceLastWithdrawal: increment(1),
           balance: increment(2), // 2 points per ad
           updatedAt: serverTimestamp()
         });
@@ -466,14 +439,13 @@ export default function App() {
     // 3. Lock System Check
     const availableInvites = (profile.total_invites || 0) - (profile.consumedInvites || 0);
     const meetsInvites = availableInvites >= 2;
-    const adRequirement = profile.has_withdrawn ? 10 : 25;
-    const meetsAds = (profile.adsSinceLastWithdrawal || 0) >= adRequirement;
+    const meetsAds = (profile.adsWatched || 0) >= 25;
 
     if (!meetsInvites || !meetsAds) {
       if (!meetsInvites) {
         alert(`You need 2 new invites for every withdrawal request. Available: ${availableInvites}/2`);
       } else {
-        alert(`Requirement not met: You need ${adRequirement} ad views to unlock your next withdrawal. Current: ${profile.adsSinceLastWithdrawal}/${adRequirement}`);
+        alert('Requirement not met: You need 25 ad views to unlock withdrawals.');
       }
       try {
         (window as any).Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
@@ -541,8 +513,6 @@ export default function App() {
           successBatch.update(newWithdrawalDocRef, { status: 'Success' });
           successBatch.update(userDocRef, {
             consumedInvites: increment(2),
-            has_withdrawn: true,
-            adsSinceLastWithdrawal: 0,
             updatedAt: serverTimestamp()
           });
           await successBatch.commit();
@@ -576,32 +546,6 @@ export default function App() {
         <Loader2 className="w-12 h-12 animate-spin text-[#06B6D4] mb-6" />
         <h2 className="text-xl font-black text-white mb-2">Loading @Madbot...</h2>
         <p className="text-sm text-[#A0AEC0]">Securing connection to rewards gateway</p>
-      </div>
-    );
-  }
-
-  if (error === "AUTH_RESTRICTED") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0D0D0D] p-8 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#EF4444]/10 flex items-center justify-center mb-6">
-          <Zap className="w-10 h-10 text-[#EF4444]" />
-        </div>
-        <h2 className="text-2xl font-black text-white mb-4">Auth Disabled</h2>
-        <div className="text-[#A0AEC0] text-sm mb-10 leading-relaxed text-left space-y-4">
-          <p>This app requires **Anonymous Authentication** to be enabled in your Firebase Project.</p>
-          <ol className="list-decimal list-inside space-y-2 font-bold text-white/80">
-            <li>Open your Firebase Console</li>
-            <li>Go to "Authentication"</li>
-            <li>Click the "Sign-in method" tab</li>
-            <li>Enable "Anonymous" provider</li>
-          </ol>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="w-full h-16 rounded-2xl bg-white text-black font-black shadow-xl"
-        >
-          I'VE ENABLED IT, RETRY
-        </button>
       </div>
     );
   }
@@ -827,16 +771,13 @@ export default function App() {
               
               <div className="stats-card rounded-2xl p-5 border border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${(profile?.adsSinceLastWithdrawal || 0) >= (profile?.has_withdrawn ? 10 : 25) ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-[#A0AEC0]'}`}>
-                   {(profile?.adsSinceLastWithdrawal || 0) >= (profile?.has_withdrawn ? 10 : 25) ? <Check size={16} /> : <MonitorPlay size={16} />}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${(profile?.adsWatched || 0) >= 25 ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-[#A0AEC0]'}`}>
+                   {(profile?.adsWatched || 0) >= 25 ? <Check size={16} /> : <MonitorPlay size={16} />}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold">{profile?.has_withdrawn ? 'Next Ads Task' : 'Ads Requirement'}</span>
-                    <p className="text-[9px] opacity-40 uppercase font-medium">{profile?.has_withdrawn ? 'Needed for next: 10' : 'Required: 25'}</p>
-                  </div>
+                  <span className="text-xs font-bold">Ads Watched</span>
                 </div>
-                <span className={`text-xs font-black ${(profile?.adsSinceLastWithdrawal || 0) >= (profile?.has_withdrawn ? 10 : 25) ? 'text-green-400' : 'text-[#EF4444]'}`}>
-                  {profile?.adsSinceLastWithdrawal || 0}/{profile?.has_withdrawn ? 10 : 25}
+                <span className={`text-xs font-black ${(profile?.adsWatched || 0) >= 25 ? 'text-green-400' : 'text-[#06B6D4]'}`}>
+                  {profile?.adsWatched || 0}/25
                 </span>
               </div>
             </div>
@@ -928,8 +869,8 @@ export default function App() {
               onClick={handleWithdraw}
               disabled={isWithdrawing || !profile || profile.balance < 30}
               className={`w-full h-16 rounded-2xl font-black text-white shadow-lg transition-all flex items-center justify-center gap-3
-                ${(((profile?.total_invites || 0) - (profile?.consumedInvites || 0)) >= 2 && (profile?.adsSinceLastWithdrawal || 0) >= (profile?.has_withdrawn ? 10 : 25)) 
-                  ? 'bg-gradient-to-r from-[#EF4444] to-[#991B1B] shadow-[#EF4444]/20' 
+                ${(((profile?.total_invites || 0) - (profile?.consumedInvites || 0)) >= 2 && (profile?.adsWatched || 0) >= 25) 
+                  ? 'bg-gradient-to-r from-[#06B6D4] to-[#10B981] shadow-[#06B6D4]/20' 
                   : 'bg-white/10 border border-white/5 text-white/20'}`}
             >
               {isWithdrawing ? (
@@ -937,7 +878,7 @@ export default function App() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>PROCESSING...</span>
                 </div>
-              ) : ((((profile?.total_invites || 0) - (profile?.consumedInvites || 0)) >= 2 && (profile?.adsSinceLastWithdrawal || 0) >= (profile?.has_withdrawn ? 10 : 25)) ? (
+              ) : ((((profile?.total_invites || 0) - (profile?.consumedInvites || 0)) >= 2 && (profile?.adsWatched || 0) >= 25) ? (
                 'WITHDRAW NOW'
               ) : (
                 <>
@@ -1009,111 +950,33 @@ export default function App() {
             <div className="bg-white/5 rounded-[32px] p-8 border border-white/10 relative overflow-hidden">
               <div className="relative z-10">
                 <div className="flex items-center gap-6 mb-10">
-                  <div className="w-20 h-20 rounded-[24px] bg-gradient-to-tr from-[#EF4444] to-[#991B1B] flex items-center justify-center text-3xl font-black text-white shadow-xl shadow-[#EF4444]/20">
+                  <div className="w-20 h-20 rounded-[24px] bg-gradient-to-tr from-[#06B6D4] to-[#10B981] flex items-center justify-center text-3xl font-black text-white shadow-xl shadow-[#06B6D4]/20">
                     {userData?.username?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-white">{userData?.username || 'User'}</h3>
-                    <p className="text-xs text-[#EF4444] font-bold mt-1 tracking-wider uppercase">Active Member</p>
+                    <p className="text-xs text-[#06B6D4] font-bold mt-1 tracking-wider uppercase">Active Member</p>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 mb-8">
-                  <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Balance</p>
-                    <p className="text-xl font-black text-white mt-1">{Math.floor(profile?.balance || 0)}</p>
-                  </div>
-                  <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Invites</p>
-                    <p className="text-xl font-black text-white mt-1">{profile?.total_invites || 0}</p>
-                  </div>
-                  <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Total Ads</p>
-                    <p className="text-xl font-black text-white mt-1">{profile?.adsWatched || 0}</p>
-                  </div>
-                  <div className="bg-black/30 p-4 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Current Ads</p>
-                    <p className="text-xl font-black text-[#EF4444] mt-1">{profile?.adsSinceLastWithdrawal || 0}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex justify-between items-center p-5 bg-black/30 rounded-2xl border border-white/5">
-                    <span className="text-xs font-bold opacity-40 uppercase tracking-widest text-[#A0AEC0]">Telegram ID</span>
+                    <span className="text-xs font-bold opacity-40 uppercase tracking-widest">Telegram ID</span>
                     <span className="text-sm font-mono text-white">{userData?.id}</span>
                   </div>
-
-                  {/* Firebase Auth Info */}
-                  <div className="p-5 bg-black/30 rounded-2xl border border-white/5 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Auth Status</span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                        <span className="text-[10px] font-black text-green-400 uppercase">Connected</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black opacity-40 uppercase tracking-widest text-[#A0AEC0]">Firebase UID</span>
-                      <span className="text-[9px] font-mono text-[#A0AEC0] truncate ml-4">
-                        {auth.currentUser?.uid || 'Not signed in'}
-                      </span>
-                    </div>
+                  <div className="flex justify-between items-center p-5 bg-black/30 rounded-2xl border border-white/5">
+                    <span className="text-xs font-bold opacity-40 uppercase tracking-widest">Reputation</span>
+                    <span className="text-sm font-bold text-green-400">Perfect 100%</span>
+                  </div>
+                  <div className="flex justify-between items-center p-5 bg-black/30 rounded-2xl border border-white/5">
+                    <span className="text-xs font-bold opacity-40 uppercase tracking-widest">Status</span>
+                    <span className="text-sm font-bold text-[#06B6D4]">Verified Earner</span>
                   </div>
                 </div>
               </div>
               
-              <div className="absolute -right-20 -top-20 w-48 h-48 bg-[#EF4444]/10 rounded-full blur-3xl" />
-            </div>
-
-            {/* FAQ Section */}
-            <div className="stats-card rounded-[32px] p-6 space-y-4">
-              <h4 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
-                <Bell size={18} className="text-[#EF4444]" />
-                Frequently Asked Questions
-              </h4>
-              
-              <div className="space-y-3">
-                <details className="group bg-white/5 rounded-2xl border border-white/5 overflow-hidden transition-all">
-                  <summary className="p-4 text-xs font-bold text-white/80 cursor-pointer list-none flex justify-between items-center hover:bg-white/5 transition-colors">
-                    How do I earn points?
-                    <Play size={10} className="rotate-90 group-open:rotate-270 transition-transform" />
-                  </summary>
-                  <div className="p-4 pt-0 text-[11px] text-[#A0AEC0] leading-relaxed">
-                    You earn points by watching short video ads (2 pts/ad) and completing daily tasks. You can also refer friends to earn a massive 50 pts per referral.
-                  </div>
-                </details>
-
-                <details className="group bg-white/5 rounded-2xl border border-white/5 overflow-hidden transition-all">
-                  <summary className="p-4 text-xs font-bold text-white/80 cursor-pointer list-none flex justify-between items-center hover:bg-white/5 transition-colors">
-                    What are the withdrawal limits?
-                    <Play size={10} className="rotate-90 group-open:rotate-270 transition-transform" />
-                  </summary>
-                  <div className="p-4 pt-0 text-[11px] text-[#A0AEC0] leading-relaxed">
-                    Minimum withdrawal is 30 points. First withdrawal requires 25 ad views. Every following withdrawal requires 10 ad views since the previous success. You also need 2 fresh invites per withdrawal.
-                  </div>
-                </details>
-
-                <details className="group bg-white/5 rounded-2xl border border-white/5 overflow-hidden transition-all">
-                  <summary className="p-4 text-xs font-bold text-white/80 cursor-pointer list-none flex justify-between items-center hover:bg-white/5 transition-colors">
-                    When do I receive my payment?
-                    <Play size={10} className="rotate-90 group-open:rotate-270 transition-transform" />
-                  </summary>
-                  <div className="p-4 pt-0 text-[11px] text-[#A0AEC0] leading-relaxed">
-                    Our system processes withdrawals with a 1-minute safety delay. Once processed and verified, the status in your history will change to Success.
-                  </div>
-                </details>
-              </div>
-
-              <motion.a 
-                whileTap={{ scale: 0.98 }}
-                href="https://t.me/yeman1th"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full h-14 mt-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold flex items-center justify-center gap-3 hover:bg-white/10 transition-all"
-              >
-                <ExternalLink size={18} className="text-[#EF4444]" />
-                NEED HELP? READ FAQ & CONTACT
-              </motion.a>
+              {/* Decorative backgrounds for profile */}
+              <div className="absolute -right-20 -top-20 w-48 h-48 bg-[#06B6D4]/10 rounded-full blur-3xl" />
             </div>
             
             <button 
@@ -1229,9 +1092,9 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode, labe
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 transition-all group relative ${active ? 'text-[#EF4444]' : 'text-[#A0AEC0]'}`}
+      className={`flex flex-col items-center gap-1 transition-all group relative ${active ? 'text-[#06B6D4]' : 'text-[#A0AEC0]'}`}
     >
-      <div className={`p-2 rounded-xl transition-all ${active ? 'bg-[#EF4444]/10 scale-110 shadow-lg shadow-[#EF4444]/10' : 'group-hover:bg-white/5'}`}>
+      <div className={`p-2 rounded-xl transition-all ${active ? 'bg-[#06B6D4]/10 scale-110 shadow-lg shadow-[#06B6D4]/10' : 'group-hover:bg-white/5'}`}>
         {React.cloneElement(icon as React.ReactElement, { size: 24, strokeWidth: active ? 2.5 : 2 })}
       </div>
       <span className={`text-[10px] font-bold uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-40'}`}>
@@ -1240,7 +1103,7 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode, labe
       {active && (
         <motion.div 
           layoutId="nav-pill"
-          className="w-1.5 h-1.5 rounded-full bg-[#EF4444] absolute -bottom-1"
+          className="w-1.5 h-1.5 rounded-full bg-[#06B6D4] absolute -bottom-1"
         />
       )}
     </button>
